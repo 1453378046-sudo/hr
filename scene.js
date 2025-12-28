@@ -1,4 +1,4 @@
-import { ChristmasTree } from './christmas_tree.js?v=macaron16';
+import { ChristmasTree } from './christmas_tree.js?v=macaron17';
 
 const THREE = window.THREE;
 const TWEEN = window.TWEEN;

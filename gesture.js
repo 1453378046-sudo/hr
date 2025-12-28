@@ -30,6 +30,7 @@ export class GestureController {
             const ua = navigator.userAgent || '';
             const isMobileUA = /Android|iPhone|iPad|iPod/i.test(ua);
             this._requiresUserGesture = isCoarsePointer || isMobileUA;
+            const locateFile = (file) => `assets/mediapipe/${file}`;
             
             // Check if Hands is loaded
             if (typeof Hands === 'undefined') {
@@ -47,7 +48,7 @@ export class GestureController {
 
             // Initialize MediaPipe Hands
             this.hands = new Hands({
-                locateFile: (file) => `assets/mediapipe/${file}`
+                locateFile
             });
 
             this.hands.setOptions({
@@ -60,7 +61,32 @@ export class GestureController {
             this.hands.onResults(this.onResults.bind(this));
 
             this.statusText.innerText = "加载模型...";
-            await this.hands.initialize();
+            const preflightFiles = [
+                'hands_solution_simd_wasm_bin.wasm',
+                'hands_solution_simd_wasm_bin.js',
+                'hands_solution_packed_assets.data',
+                'hand_landmark_lite.tflite',
+                'hands.binarypb'
+            ];
+            try {
+                await Promise.all(preflightFiles.map(async (file) => {
+                    const url = locateFile(file);
+                    const res = await fetch(url, { method: 'HEAD', cache: 'no-store' });
+                    if (!res.ok) throw new Error(`${res.status} ${url}`);
+                }));
+            } catch (e) {
+                this.statusText.innerText = "模型资源加载失败，请检查网络后重试";
+                this.startBtn.innerText = "重试";
+                this.startBtn.style.display = "block";
+                this.startBtn.onclick = () => location.reload();
+                return;
+            }
+
+            const initTimeoutMs = 20000;
+            await Promise.race([
+                this.hands.initialize(),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('Hands initialize timeout')), initTimeoutMs))
+            ]);
             
             this.isLoaded = true;
             if (!navigator.mediaDevices?.getUserMedia) {
