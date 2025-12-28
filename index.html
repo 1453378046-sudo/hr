@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>MXM | Gesture Gallery</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #fbf7ff;
+            --panel: rgba(255, 255, 255, 0.62);
+            --panel-strong: rgba(255, 255, 255, 0.78);
+            --text: #26262c;
+            --muted: rgba(38, 38, 44, 0.58);
+            --border: rgba(38, 38, 44, 0.10);
+            --shadow: 0 16px 50px rgba(28, 22, 45, 0.12);
+            --accent: #ff8fab;
+            --accent2: #7aa9ff;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+        }
+
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            background: radial-gradient(1200px 900px at 15% 12%, #ffe5ec 0%, rgba(255,229,236,0) 62%),
+                        radial-gradient(900px 700px at 86% 18%, #e0fbfc 0%, rgba(224,251,252,0) 58%),
+                        radial-gradient(800px 700px at 64% 86%, #ede7ff 0%, rgba(237,231,255,0) 60%),
+                        var(--bg);
+            color: var(--text); 
+            font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+            user-select: none;
+            overscroll-behavior: none;
+            touch-action: none;
+        }
+
+        #canvas-container { 
+            width: 100%; 
+            height: var(--app-height, 100vh);
+            position: fixed; 
+            inset: 0;
+            z-index: 1; 
+            background: transparent; 
+        }
+
+        /* --- UI Overlay --- */
+        #ui-layer { 
+            position: fixed; 
+            inset: 0;
+            width: 100%; 
+            height: var(--app-height, 100vh);
+            z-index: 10; 
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: calc(env(safe-area-inset-top, 0px) + 18px) calc(env(safe-area-inset-right, 0px) + 18px) calc(env(safe-area-inset-bottom, 0px) + 18px) calc(env(safe-area-inset-left, 0px) + 18px);
+            box-sizing: border-box;
+            position: relative;
+        }
+
+        /* Header */
+        .header {
+            position: absolute;
+            top: calc(env(safe-area-inset-top, 0px) + 12px);
+            left: calc(env(safe-area-inset-left, 0px) + 12px);
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 12px 12px;
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            background: var(--panel);
+            backdrop-filter: blur(16px);
+            box-shadow: var(--shadow);
+            max-width: 280px;
+        }
+
+        .topbar-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            gap: 12px;
+        }
+
+        .brand {
+            font-size: 1.05rem;
+            font-weight: 700;
+            letter-spacing: 0.22rem;
+            text-transform: uppercase;
+            color: var(--text);
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.9rem;
+            color: var(--muted);
+            border: 1px solid var(--border);
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: var(--panel-strong);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--accent);
+            border-radius: 50%;
+            box-shadow: 0 0 0 6px rgba(255, 143, 171, 0.18);
+            animation: pulse 2s infinite;
+        }
+
+        /* HUD Footer */
+        .footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+        }
+        
+        @media (max-width: 900px) {
+            .footer {
+                gap: 14px;
+                align-items: stretch;
+            }
+            .cam-feed {
+                width: 160px;
+                height: 120px;
+            }
+        }
+
+        /* Camera Feed Stylized */
+        .cam-feed {
+            position: fixed;
+            left: -10000px;
+            top: -10000px;
+            width: 1px;
+            height: 1px;
+            opacity: 0;
+            pointer-events: none;
+            overflow: hidden;
+        }
+
+        .cam-feed::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            border-radius: 18px;
+            box-shadow: inset 0 0 0 1px rgba(255,255,255,0.7);
+            z-index: 5;
+        }
+        
+        /* Scanline effect */
+        .cam-feed::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0));
+            z-index: 6;
+            pointer-events: none;
+        }
+
+        #webcam { 
+            width: 100%; 
+            height: 100%; 
+            object-fit: cover; 
+            transform: scaleX(-1); 
+            opacity: 0.92; 
+        }
+        
+        #output_canvas { 
+            position: absolute; 
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            height: 100%; 
+            transform: scaleX(-1); 
+        }
+
+        /* Interaction HUD */
+        .interaction-hud {
+            width: 100%;
+            text-align: left;
+            padding: 10px 10px;
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.58);
+            backdrop-filter: blur(16px);
+        }
+
+        .hud-title {
+            font-size: 0.75rem;
+            color: var(--muted);
+            letter-spacing: 0.16rem;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
+
+        .hud-value {
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: var(--text);
+            min-width: 0;
+        }
+
+        /* Instructions */
+        .instructions {
+            display: none;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        @media (max-width: 900px) {
+            .header {
+                max-width: 260px;
+            }
+            #status-text {
+                font-size: 1.1rem;
+                margin-bottom: 22px;
+            }
+            .loader-ring {
+                width: 78px;
+                height: 78px;
+                margin-bottom: 22px;
+            }
+            #start-btn {
+                padding: 13px 34px;
+                font-size: 1.0rem;
+            }
+        }
+
+        .cmd-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 7px 10px;
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            transition: all 0.3s;
+            background: rgba(255, 255, 255, 0.55);
+            backdrop-filter: blur(16px);
+        }
+
+        .cmd-item:hover {
+            transform: translateY(-1px);
+            background: var(--panel-strong);
+        }
+
+        .cmd-icon {
+            font-weight: 700;
+            color: var(--accent2);
+            font-size: 1.1rem;
+        }
+
+        .cmd-desc {
+            font-size: 0.82rem;
+            color: var(--muted);
+            letter-spacing: 0.3px;
+        }
+        
+        /* Cursor */
+        #hand-cursor {
+            position: fixed; 
+            width: 40px; 
+            height: 40px; 
+            border: 2px solid var(--accent2); 
+            border-radius: 50%; 
+            pointer-events: none; 
+            z-index: 9999; 
+            opacity: 0; 
+            transition: opacity 0.2s, transform 0.05s linear; 
+            box-shadow: 0 0 0 10px rgba(122, 169, 255, 0.12);
+            background: rgba(122, 169, 255, 0.08);
+        }
+        
+        #hand-cursor::after {
+            content: '';
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 4px; height: 4px;
+            background: #fff;
+            border-radius: 50%;
+        }
+
+        /* Loading Screen */
+        #status-overlay { 
+            position: absolute; 
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            height: 100%; 
+            background: radial-gradient(900px 700px at 20% 18%, #ffe5ec 0%, rgba(255,229,236,0) 60%),
+                        radial-gradient(900px 700px at 82% 20%, #e0fbfc 0%, rgba(224,251,252,0) 58%),
+                        radial-gradient(900px 700px at 65% 86%, #ede7ff 0%, rgba(237,231,255,0) 62%),
+                        var(--bg);
+            z-index: 100; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: center; 
+            transition: opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .loader-ring { 
+            width: 100px; 
+            height: 100px; 
+            border: 3px solid rgba(38, 38, 44, 0.08); 
+            border-top: 3px solid var(--accent2); 
+            border-radius: 50%; 
+            animation: spin 1s linear infinite; 
+            margin-bottom: 30px;
+            box-shadow: 0 18px 60px rgba(28, 22, 45, 0.14);
+        }
+
+        #status-text { 
+            font-size: 1.5rem; 
+            letter-spacing: 2px; 
+            color: var(--text); 
+            margin-bottom: 40px; 
+        }
+
+        #start-btn { 
+            padding: 15px 50px; 
+            background: var(--panel-strong); 
+            border: 1px solid var(--border); 
+            color: var(--text); 
+            font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+            font-size: 1.1rem; 
+            letter-spacing: 1px; 
+            cursor: pointer; 
+            transition: all 0.3s; 
+            display: none; 
+            position: relative;
+            overflow: hidden;
+            border-radius: 999px;
+            box-shadow: var(--shadow);
+        }
+
+        #start-btn:hover { 
+            transform: translateY(-1px);
+            box-shadow: 0 18px 60px rgba(28, 22, 45, 0.16);
+        }
+
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes pulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
+
+    </style>
+</head>
+<body>
+    <div id="hand-cursor"></div>
+    <div id="status-overlay">
+        <div class="loader-ring"></div>
+        <div id="status-text">正在初始化…</div>
+        <button id="start-btn">开始</button>
+    </div>
+    
+    <div id="canvas-container"></div>
+    
+    <div id="ui-layer">
+        <div class="header">
+            <div class="topbar-row">
+                <div class="brand">MXM</div>
+                <div class="status-indicator">
+                    <div class="status-dot"></div>
+                    <span>准备就绪</span>
+                </div>
+            </div>
+
+            <div class="instructions">
+                <div class="cmd-item">
+                    <span class="cmd-icon">✋</span>
+                    <span class="cmd-desc">左右移动：滑动卡牌</span>
+                </div>
+                <div class="cmd-item">
+                    <span class="cmd-icon">👌</span>
+                    <span class="cmd-desc">捏合：选择并显示照片</span>
+                </div>
+                <div class="cmd-item">
+                    <span class="cmd-icon">🫰</span>
+                    <span class="cmd-desc">比心：爱心模式</span>
+                </div>
+                <div class="cmd-item">
+                    <span class="cmd-icon">👍</span>
+                    <span class="cmd-desc">点赞：圣诞树模式</span>
+                </div>
+                <div class="cmd-item">
+                    <span class="cmd-icon">✊</span>
+                    <span class="cmd-desc">握拳：消散 / 返回</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <div class="cam-feed">
+                <video id="webcam" autoplay playsinline muted></video>
+                <canvas id="output_canvas"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Core Dependencies (CDNJS) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.2/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tween.js/18.6.4/tween.umd.js"></script>
+    
+    <!-- MediaPipe Scripts (Locally Hosted) -->
+    <script>
+      window.createMediapipeSolutionsPackedAssets = window.createMediapipeSolutionsPackedAssets || {};
+      window.createMediapipeSolutionsPackedAssets.locateFile = (file) => `assets/mediapipe/${file}`;
+    </script>
+    <script src="assets/mediapipe/hands.js" crossorigin="anonymous" defer></script>
+    <!-- <script src="assets/mediapipe/camera_utils.js" crossorigin="anonymous" defer></script> Optional -->
+    <script src="assets/mediapipe/drawing_utils.js" crossorigin="anonymous" defer></script>
+
+    <script type="module" src="main.js?v=macaron16"></script>
+</body>
+</html>
