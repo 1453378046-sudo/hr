@@ -30,7 +30,11 @@ export class GestureController {
             const ua = navigator.userAgent || '';
             const isMobileUA = /Android|iPhone|iPad|iPod/i.test(ua);
             this._requiresUserGesture = isCoarsePointer || isMobileUA;
-            const locateFile = (file) => `assets/mediapipe/${file}`;
+            const localBase = 'assets/mediapipe/';
+            const cdnBase = 'https://cdn.jsdelivr.net/gh/1453378046-sudo/hr@main/assets/mediapipe/';
+            const baseCandidates = [localBase, cdnBase];
+            const buildUrl = (base, file) => (base.endsWith('/') ? `${base}${file}` : `${base}/${file}`);
+            window.__mediapipeAssetBase = window.__mediapipeAssetBase || localBase;
             
             // Check if Hands is loaded
             if (typeof Hands === 'undefined') {
@@ -46,47 +50,39 @@ export class GestureController {
                 });
             }
 
-            // Initialize MediaPipe Hands
-            this.hands = new Hands({
-                locateFile
-            });
-
-            this.hands.setOptions({
-                maxNumHands: 1,
-                modelComplexity: 0,
-                minDetectionConfidence: 0.3,
-                minTrackingConfidence: 0.3
-            });
-
-            this.hands.onResults(this.onResults.bind(this));
+            const initTimeoutMs = 20000;
+            const initHandsWithBase = async (base) => {
+                window.__mediapipeAssetBase = base;
+                const locateFile = (file) => buildUrl(base, file);
+                const hands = new Hands({ locateFile });
+                hands.setOptions({
+                    maxNumHands: 1,
+                    modelComplexity: 0,
+                    minDetectionConfidence: 0.3,
+                    minTrackingConfidence: 0.3
+                });
+                hands.onResults(this.onResults.bind(this));
+                await Promise.race([
+                    hands.initialize(),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('Hands initialize timeout')), initTimeoutMs))
+                ]);
+                return hands;
+            };
 
             this.statusText.innerText = "加载模型...";
-            const preflightFiles = [
-                'hands_solution_simd_wasm_bin.wasm',
-                'hands_solution_simd_wasm_bin.js',
-                'hands_solution_packed_assets.data',
-                'hand_landmark_lite.tflite',
-                'hands.binarypb'
-            ];
             try {
-                await Promise.all(preflightFiles.map(async (file) => {
-                    const url = locateFile(file);
-                    const res = await fetch(url, { method: 'HEAD', cache: 'no-store' });
-                    if (!res.ok) throw new Error(`${res.status} ${url}`);
-                }));
-            } catch (e) {
-                this.statusText.innerText = "模型资源加载失败，请检查网络后重试";
-                this.startBtn.innerText = "重试";
-                this.startBtn.style.display = "block";
-                this.startBtn.onclick = () => location.reload();
-                return;
+                this.hands = await initHandsWithBase(localBase);
+            } catch (_) {
+                try {
+                    this.hands = await initHandsWithBase(cdnBase);
+                } catch (e) {
+                    this.statusText.innerText = "模型资源加载失败，请检查网络后重试";
+                    this.startBtn.innerText = "重试";
+                    this.startBtn.style.display = "block";
+                    this.startBtn.onclick = () => location.reload();
+                    return;
+                }
             }
-
-            const initTimeoutMs = 20000;
-            await Promise.race([
-                this.hands.initialize(),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('Hands initialize timeout')), initTimeoutMs))
-            ]);
             
             this.isLoaded = true;
             if (!navigator.mediaDevices?.getUserMedia) {

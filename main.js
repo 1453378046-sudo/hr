@@ -1,5 +1,5 @@
-import { SceneController } from './scene.js?v=macaron17';
-import { GestureController } from './gesture.js?v=macaron17';
+import { SceneController } from './scene.js?v=macaron20';
+import { GestureController } from './gesture.js?v=macaron20';
 
 document.addEventListener('DOMContentLoaded', () => {
     const setAppHeight = () => {

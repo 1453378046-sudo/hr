@@ -414,12 +414,14 @@
     <!-- MediaPipe Scripts (Locally Hosted) -->
     <script>
       window.createMediapipeSolutionsPackedAssets = window.createMediapipeSolutionsPackedAssets || {};
-      window.createMediapipeSolutionsPackedAssets.locateFile = (file) => `assets/mediapipe/${file}`;
+      const normalizeMediapipeBase = (base) => (String(base || '').endsWith('/') ? String(base || '') : `${String(base || '')}/`);
+      window.__mediapipeAssetBase = normalizeMediapipeBase(window.__mediapipeAssetBase || 'assets/mediapipe/');
+      window.createMediapipeSolutionsPackedAssets.locateFile = (file) => `${normalizeMediapipeBase(window.__mediapipeAssetBase || 'assets/mediapipe/')}${file}`;
     </script>
     <script src="assets/mediapipe/hands.js" crossorigin="anonymous" defer></script>
     <!-- <script src="assets/mediapipe/camera_utils.js" crossorigin="anonymous" defer></script> Optional -->
     <script src="assets/mediapipe/drawing_utils.js" crossorigin="anonymous" defer></script>
 
-    <script type="module" src="main.js?v=macaron17"></script>
+    <script type="module" src="main.js?v=macaron20"></script>
 </body>
 </html>
